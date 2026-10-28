@@ -149,7 +149,7 @@
   <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
     <div class="modal-box">
       <h3 id="mtitle">次の画面での手順</h3>
-      <p class="ok">✓ 文章をコピーしました</p>
+      <p class="ok" id="copied">✓ 文章をコピーしました</p>
       <ol class="big-steps">
         <li>星の数を選ぶ</li>
         <li class="key">本文の欄を<b>長押し</b>して<br>「<b>ペースト（貼り付け）</b>」</li>
@@ -237,10 +237,14 @@
     return parts.join(String.fromCharCode(10));
   }
 
-  function copy(text) {
-    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
-    const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
-    try { document.execCommand('copy'); } catch (e) {} t.remove(); return Promise.resolve();
+  // コピーできたら true。LINEなどのアプリ内ブラウザで失敗しても止まらないようにする
+  async function copy(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+    }
+    const t = document.createElement('textarea'); t.value = text; t.setAttribute('readonly', '');
+    t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} t.remove(); return ok;
   }
   function flash() { const el = document.getElementById('toast'); el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 2500); }
 
@@ -260,7 +264,11 @@
   // すぐにGoogleへ飛ばさず、貼り付けの手順を見せてから開く（貼り付け忘れの防止）
   const modal = document.getElementById('modal');
   document.getElementById('go').addEventListener('click', async () => {
-    await copy(document.getElementById('draft').value);
+    const ok = await copy(document.getElementById('draft').value);
+    const msg = document.getElementById('copied');
+    msg.textContent = ok ? '✓ 文章をコピーしました'
+                         : 'コピーできませんでした。「戻って文章を直す」から下書きを長押しして、全部選んでコピーしてください';
+    msg.style.color = ok ? '' : 'var(--warm)';
     modal.classList.add('open');
     document.getElementById('open').focus();
   });
@@ -275,7 +283,10 @@
     document.getElementById('draft').focus();
   });
   document.getElementById('copyOnly').addEventListener('click', async () => {
-    await copy(document.getElementById('draft').value); flash();
+    const ok = await copy(document.getElementById('draft').value);
+    const el = document.getElementById('toast');
+    el.textContent = ok ? 'コピーしました' : 'コピーできませんでした。下書きを長押ししてコピーしてください';
+    flash();
   });
 </script>
 </body>
