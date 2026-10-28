@@ -46,7 +46,8 @@
   .modal { display: none; position: fixed; inset: 0; background: rgba(20, 28, 38, .6); z-index: 10;
            align-items: center; justify-content: center; padding: 16px; }
   .modal.open { display: flex; }
-  .modal-box { background: #fff; border-radius: 16px; padding: 22px 18px 18px; max-width: 440px; width: 100%; }
+  .modal-box { background: #fff; border-radius: 16px; padding: 22px 18px 18px; max-width: 440px; width: 100%;
+               max-height: 100%; overflow-y: auto; }
   .modal-box h3 { margin: 0 0 4px; font-size: 20px; text-align: center; }
   .modal-box .ok { text-align: center; color: var(--accent); font-weight: 700; margin: 0 0 14px; font-size: 16px; }
   .big-steps { list-style: none; margin: 0 0 16px; padding: 0; counter-reset: s; }
@@ -58,6 +59,9 @@
   .big-steps li.key { background: #fdf0e6; border: 2px solid var(--warm); }
   .big-steps li.key::before { background: var(--warm); }
   .big-steps b { color: var(--warm); }
+  .pic { margin: 0 0 12px; }
+  .pic svg { display: block; width: 100%; height: auto; border-radius: 12px; }
+  .big-steps small { display: block; font-size: 13px; color: var(--sub); margin-top: 2px; }
   .note { font-size: 14px; color: var(--sub); margin: 14px 0 0; line-height: 1.6; }
 </style>
 </head>
@@ -150,11 +154,8 @@
     <div class="modal-box">
       <h3 id="mtitle">次の画面での手順</h3>
       <p class="ok" id="copied">✓ 文章をコピーしました</p>
-      <ol class="big-steps">
-        <li>星の数を選ぶ</li>
-        <li class="key">本文の欄を<b>長押し</b>して<br>「<b>ペースト（貼り付け）</b>」</li>
-        <li>内容を確かめて「投稿」</li>
-      </ol>
+      <div class="pic" id="pic"></div>
+      <ol class="big-steps" id="bigSteps"></ol>
       <button class="btn btn-go" type="button" id="open">わかりました。Google を開く</button>
       <button class="btn btn-sub" type="button" id="back">戻って文章を直す</button>
     </div>
@@ -261,13 +262,58 @@
     if (d.value !== lastMade && !confirm('書き直した内容は消えます。別の言い回しにしますか？')) return;
     variant++; d.value = lastMade = compose();
   });
+  // スマホの種類ごとに、貼り付けの手順と絵を出し分ける
+  const ua = navigator.userAgent;
+  const device = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'ios'
+               : /Android/.test(ua) ? 'android' : 'pc';
+  const STEPS = {
+    ios: ['星の数を選ぶ',
+          '<b>本文の欄をタップ</b>して、<b>もう一度タップ</b>',
+          '出てきた「<b>ペースト</b>」をタップ',
+          '内容を確かめて「投稿」'],
+    android: ['星の数を選ぶ',
+              '<b>本文の欄をタップ</b>',
+              'キーボードの上に出る<b>文章をタップ</b><small>出ないときは、本文の欄を長押しして「貼り付け」</small>',
+              '内容を確かめて「投稿」'],
+    pc: ['星の数を選ぶ', '<b>本文の欄をクリック</b>', 'キーボードの「<b>Ctrl</b>」と「<b>V</b>」を一緒に押す<small>Mac は「⌘」と「V」</small>', '内容を確かめて「投稿」']
+  };
+  const KEY = { ios: [1, 2], android: [1, 2], pc: [1, 2] };   // 目立たせる手順
+  // 絵の共通部分: 星と本文の欄
+  const head = `<rect width="300" height="170" fill="#f6f4ef"/>
+    <text x="20" y="34" font-size="22" fill="#f4b400" letter-spacing="2">★★★★★</text>
+    <rect x="20" y="50" width="260" height="56" rx="8" fill="#fff" stroke="#c8641e" stroke-width="2.5"/>
+    <text x="32" y="74" font-size="12" fill="#9aa3ad">ご自身の体験を共有してください</text>`;
+  const finger = (x, y) => `<circle cx="${x}" cy="${y}" r="16" fill="#c8641e" opacity=".18"/>
+    <circle cx="${x}" cy="${y}" r="8" fill="#c8641e" opacity=".55"/>`;
+  const PICS = {
+    ios: head + `<rect x="64" y="112" width="96" height="34" rx="8" fill="#2b2b2b"/>
+      <path d="M100 112 l8 -8 l8 8z" fill="#2b2b2b"/>
+      <text x="112" y="134" font-size="15" fill="#fff" text-anchor="middle" font-weight="700">ペースト</text>
+      ${finger(150, 94)}${finger(156, 140)}`,
+    android: head + `<rect x="0" y="118" width="300" height="52" fill="#dfe3e8"/>
+      <rect x="20" y="126" width="200" height="30" rx="15" fill="#fff" stroke="#c8641e" stroke-width="2"/>
+      <rect x="32" y="134" width="11" height="14" rx="2" fill="none" stroke="#5b6676" stroke-width="1.6"/>
+      <text x="52" y="146" font-size="13" fill="#1f2a37">相続した実家の売却で…</text>
+      ${finger(150, 94)}${finger(214, 150)}`,
+    pc: head + `<rect x="70" y="122" width="56" height="34" rx="6" fill="#fff" stroke="#5b6676"/>
+      <text x="98" y="144" font-size="14" fill="#1f2a37" text-anchor="middle" font-weight="700">Ctrl</text>
+      <text x="142" y="145" font-size="18" fill="#5b6676" text-anchor="middle">＋</text>
+      <rect x="158" y="122" width="44" height="34" rx="6" fill="#fff" stroke="#5b6676"/>
+      <text x="180" y="145" font-size="16" fill="#1f2a37" text-anchor="middle" font-weight="700">V</text>
+      ${finger(150, 94)}`
+  };
+  document.getElementById('pic').innerHTML =
+    `<svg viewBox="0 0 300 170" role="img" aria-label="貼り付けのしかたの図" font-family="sans-serif">${PICS[device]}</svg>`;
+  document.getElementById('bigSteps').innerHTML =
+    STEPS[device].map((s, i) => `<li${KEY[device].includes(i) ? ' class="key"' : ''}>${s}</li>`).join('');
+
   // すぐにGoogleへ飛ばさず、貼り付けの手順を見せてから開く（貼り付け忘れの防止）
   const modal = document.getElementById('modal');
   document.getElementById('go').addEventListener('click', async () => {
     const ok = await copy(document.getElementById('draft').value);
     const msg = document.getElementById('copied');
     msg.textContent = ok ? '✓ 文章をコピーしました'
-                         : 'コピーできませんでした。「戻って文章を直す」から下書きを長押しして、全部選んでコピーしてください';
+                         : 'コピーできませんでした。「戻って文章を直す」を押して、下書きを長押し→「全選択」→「コピー」してください';
     msg.style.color = ok ? '' : 'var(--warm)';
     modal.classList.add('open');
     document.getElementById('open').focus();
