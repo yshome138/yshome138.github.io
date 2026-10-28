@@ -42,6 +42,23 @@
   .steps { margin: 14px 0 0; padding-left: 1.3em; font-size: 15px; color: var(--sub); }
   .toast { display: none; text-align: center; color: var(--accent); font-weight: 700; margin-top: 8px; }
   footer { text-align: center; font-size: 13px; color: var(--sub); margin-top: 28px; line-height: 1.8; }
+  /* Googleへ進む前の確認画面 */
+  .modal { display: none; position: fixed; inset: 0; background: rgba(20, 28, 38, .6); z-index: 10;
+           align-items: center; justify-content: center; padding: 16px; }
+  .modal.open { display: flex; }
+  .modal-box { background: #fff; border-radius: 16px; padding: 22px 18px 18px; max-width: 440px; width: 100%; }
+  .modal-box h3 { margin: 0 0 4px; font-size: 20px; text-align: center; }
+  .modal-box .ok { text-align: center; color: var(--accent); font-weight: 700; margin: 0 0 14px; font-size: 16px; }
+  .big-steps { list-style: none; margin: 0 0 16px; padding: 0; counter-reset: s; }
+  .big-steps li { counter-increment: s; position: relative; padding: 10px 10px 10px 48px; margin-bottom: 8px;
+                  border-radius: 10px; background: var(--bg); font-size: 17px; line-height: 1.5; }
+  .big-steps li::before { content: counter(s); position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+                          width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff;
+                          text-align: center; line-height: 28px; font-size: 15px; font-weight: 700; }
+  .big-steps li.key { background: #fdf0e6; border: 2px solid var(--warm); }
+  .big-steps li.key::before { background: var(--warm); }
+  .big-steps b { color: var(--warm); }
+  .note { font-size: 14px; color: var(--sub); margin: 14px 0 0; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -124,13 +141,24 @@
     <button class="btn btn-sub" type="button" id="again">別の言い回しにする</button>
     <button class="btn btn-go" type="button" id="go">文章をコピーして Google の口コミ画面へ</button>
     <div class="toast" id="toast">コピーしました</div>
-    <ol class="steps">
-      <li>Google の画面で、星の数を選びます</li>
-      <li>本文の欄を長押しして「ペースト（貼り付け）」</li>
-      <li>内容を確かめて「投稿」</li>
-    </ol>
     <button class="btn btn-sub" type="button" id="copyOnly">文章だけコピーする</button>
+    <p class="note">うまく貼り付けられなかったときは、この画面に戻って「文章だけコピーする」を押してください。<br>
+      星だけで投稿してしまった場合も、Google マップの「自分の口コミ」から、あとで文章を書き足せます。</p>
   </section>
+
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <div class="modal-box">
+      <h3 id="mtitle">次の画面での手順</h3>
+      <p class="ok">✓ 文章をコピーしました</p>
+      <ol class="big-steps">
+        <li>星の数を選ぶ</li>
+        <li class="key">本文の欄を<b>長押し</b>して<br>「<b>ペースト（貼り付け）</b>」</li>
+        <li>内容を確かめて「投稿」</li>
+      </ol>
+      <button class="btn btn-go" type="button" id="open">わかりました。Google を開く</button>
+      <button class="btn btn-sub" type="button" id="back">戻って文章を直す</button>
+    </div>
+  </div>
 
   <footer>
     入力した内容は、この画面の中だけで使われ、当社には送信・保存されません。<br>
@@ -229,9 +257,22 @@
     if (d.value !== lastMade && !confirm('書き直した内容は消えます。別の言い回しにしますか？')) return;
     variant++; d.value = lastMade = compose();
   });
+  // すぐにGoogleへ飛ばさず、貼り付けの手順を見せてから開く（貼り付け忘れの防止）
+  const modal = document.getElementById('modal');
   document.getElementById('go').addEventListener('click', async () => {
-    await copy(document.getElementById('draft').value); flash();
-    setTimeout(() => { location.href = REVIEW_URL; }, 600);
+    await copy(document.getElementById('draft').value);
+    modal.classList.add('open');
+    document.getElementById('open').focus();
+  });
+  document.getElementById('open').addEventListener('click', () => {
+    copy(document.getElementById('draft').value);   // 念のためもう一度コピー
+    modal.classList.remove('open');
+    // 新しいタブで開き、この画面を残す（戻ってコピーし直せるように）
+    if (!window.open(REVIEW_URL, '_blank')) location.href = REVIEW_URL;
+  });
+  document.getElementById('back').addEventListener('click', () => {
+    modal.classList.remove('open');
+    document.getElementById('draft').focus();
   });
   document.getElementById('copyOnly').addEventListener('click', async () => {
     await copy(document.getElementById('draft').value); flash();
